@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>英単語リピート再生 v1.09（サンプル再挿入つき）</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", Arial, sans-serif; margin: 1rem; line-height: 1.6; }
+    textarea { width: 100%; min-height: 240px; font-size: 16px; }
+    label { display:block; margin-top: .75rem; font-weight: 600; }
+    select, input[type="range"], input[type="file"] { width: 100%; padding: .5rem; font-size: 16px; box-sizing: border-box; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .controls { display:flex; gap:.5rem; margin:.75rem 0; flex-wrap:wrap; align-items:center; }
+    button { padding:.6rem .9rem; font-size:16px; border:1px solid #ccc; background:#f8f8f8; border-radius:8px; cursor:pointer; }
+    button.primary { background:#2563eb; border-color:#1d4ed8; color:#fff; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .now { padding:.75rem; background:#eef6ff; border-left:4px solid #3b82f6; margin-top:.5rem; white-space: pre-wrap; }
+    .muted { color:#666; font-size:.9em; }
+    .badge { display:inline-block; background:#eee; border-radius:999px; padding:.1rem .5rem; margin-left:.25rem; font-size:.85em; }
+    .pill { display:inline-block; padding:.1rem .45rem; border-radius: 999px; background:#eef2ff; color:#3730a3; font-size:.85em; }
+  </style>
+</head>
+<body>
+  <h1>英単語リピート再生 v1.09</h1>
+  <p class="muted">v1.07の安定性を維持しつつ、<b>初回起動（または保存が空）でサンプル20語を自動表示</b>し、いつでも戻せる<b>「🔁サンプル再挿入」</b>ボタンを追加しました。</p>
+
+  <label for="words">単語|例文|グループ|重要</label>
+  <textarea id="words" placeholder="deceive|He tried to deceive me|Spring_03|★"></textarea>
+  <div class="controls" style="margin-top:.4rem;">
+    <button id="insertSample">🔁 サンプル再挿入</button>
+    <span class="muted">※ 現在の入力を上書きします（必要なら先にコピーしてください）</span>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="voice">音声</label>
+      <select id="voice"></select>
+      <div class="muted">※ 音声は voiceURI で固定し、voiceschanged でもリセットしません。</div>
+    </div>
+    <div>
+      <label for="order">順番</label>
+      <select id="order">
+        <option value="inorder">入力順</option>
+        <option value="shuffle">シャッフル</option>
+      </select>
+      <div class="controls" style="margin-top:.4rem;">
+        <label style="margin:0; font-weight:600; display:flex; gap:.5rem; align-items:center;">
+          <input id="beepOn" type="checkbox" style="width:auto; transform: scale(1.1);" />
+          開始ビープ
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="group">グループ</label>
+      <select id="group"></select>
+      <div class="muted">再生中にここを触ると自動で一時停止します（選択後に自動再開）。</div>
+    </div>
+    <div>
+      <label style="margin:0; font-weight:600; display:flex; gap:.5rem; align-items:center; margin-top: .75rem;">
+        <input id="starOnly" type="checkbox" style="width:auto; transform: scale(1.1);" />
+        ★のみ
+      </label>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="repeat">繰り返し <span class="badge" id="repeatBadge">2</span></label>
+      <input id="repeat" type="range" min="1" max="10" step="1" value="2">
+    </div>
+    <div>
+      <label for="rate">話速 <span class="badge" id="rateBadge">1.0</span></label>
+      <input id="rate" type="range" min="0.5" max="1.4" step="0.1" value="1.0">
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="gap">間隔（秒） <span class="badge" id="gapBadge">0.8</span></label>
+      <input id="gap" type="range" min="0.0" max="3.0" step="0.1" value="0.8">
+    </div>
+    <div></div>
+  </div>
+
+  <div class="controls">
+    <button id="playWord" class="primary">▶ 再生（単語）</button>
+    <button id="playWordExample">▶▶ 再生（単語→例文）</button>
+    <button id="pause">⏸ 一時停止/再開</button>
+    <button id="stop">⏹ 停止</button>
+    <button id="next">⏭ 次へ</button>
+    <span class="muted" id="countInfo"></span>
+  </div>
+
+  <div id="status" class="muted">準備OK</div>
+  <div id="now" class="now" style="display:none;"></div>
+
+<script>
+(() => {
+  const synth = window.speechSynthesis;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = AudioCtx ? new AudioCtx() : null;
+
+  const DEFAULT_SAMPLE = `deceive|He tried to deceive me|Spring_03|★
+conceive|She conceived a new plan|Spring_03|★
+receive|I received the email|Spring_03|★
+perceive|People perceive colors differently|Spring_03|★
+ceiling|The ceiling is high|Spring_03|
+protein|Protein builds muscles|Spring_03|
+caffeine|Caffeine keeps me awake|Spring_03|
+seize|Police seized the bag|Spring_03|
+either|You can choose either|Spring_03|
+neither|Neither answer is correct|Spring_03|
+knife|He cut bread with a knife.|Winter_06|
+knowledge|Knowledge grows through study.|Winter_06|
+knight|The knight protected the castle.|Winter_06|★
+knuckle|He hurt his knuckle boxing.|Winter_06|
+wreckage|Wreckage covered the road.|Winter_06|
+writer|She is a travel writer.|Winter_06|
+wrestler|The wrestler won the match.|Winter_06|
+wreath|She hung a wreath outside.|Winter_06|
+mnemonic|Mnemonics help remember spelling.|Winter_06|★
+pterodactyl|The pterodactyl flew overhead.|Winter_06|`;
+
+  const wordsEl = document.getElementById('words');
+  const insertSampleBtn = document.getElementById('insertSample');
+
+  const voiceSel = document.getElementById('voice');
+  const orderEl = document.getElementById('order');
+  const groupEl = document.getElementById('group');
+  const starOnlyEl = document.getElementById('starOnly');
+  const beepOnEl = document.getElementById('beepOn');
+
+  const repeatEl = document.getElementById('repeat');
+  const rateEl = document.getElementById('rate');
+  const gapEl = document.getElementById('gap');
+  const repeatBadge = document.getElementById('repeatBadge');
+  const rateBadge = document.getElementById('rateBadge');
+  const gapBadge = document.getElementById('gapBadge');
+
+  const statusEl = document.getElementById('status');
+  const nowEl = document.getElementById('now');
+  const countInfoEl = document.getElementById('countInfo');
+
+  // --- persistent keys ---
+  const VOICE_KEY = 'vocabApp.voiceURI.v1';
+  const GROUP_KEY = 'vocabApp.group.v1';
+  const STAR_KEY  = 'vocabApp.starOnly.v1';
+  const ORDER_KEY = 'vocabApp.order.v1';
+  const BEEP_KEY  = 'vocabApp.beepOn.v1';
+
+  const WORDS_KEY = 'vocabApp.words.v1.09';
+  const WORDS_KEY_OLD = 'vocabApp.words.v1.08';
+
+  let voices = [];
+  let selectedVoiceURI = localStorage.getItem(VOICE_KEY) || null;
+
+  let queue = [];
+  let idx = 0;
+  let rep = 0;
+  let playing = false;
+  let paused = false;
+  let timer = null;
+  let runToken = 0; // stop/cancel invalidation
+  let autoPausedByUI = false;
+
+  function updateBadges(){
+    repeatBadge.textContent = repeatEl.value;
+    rateBadge.textContent = Number(rateEl.value).toFixed(1);
+    gapBadge.textContent = Number(gapEl.value).toFixed(1);
+  }
+  repeatEl.addEventListener('input', updateBadges);
+  rateEl.addEventListener('input', updateBadges);
+  gapEl.addEventListener('input', updateBadges);
+  updateBadges();
+
+  function setStatus(msg){ statusEl.textContent = msg; }
+  function clearTimer(){ if (timer){ clearTimeout(timer); timer = null; } }
+
+  function cancelSpeakHard(){
+    // cancel may be flaky on some stacks; do twice and invalidate callbacks
+    runToken++;
+    synth.cancel();
+    setTimeout(() => synth.cancel(), 0);
+    clearTimer();
+  }
+
+  function beep(){
+    if (!audioCtx) return;
+    try {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.frequency.value = 880;
+      g.gain.value = 0.05;
+      o.connect(g).connect(audioCtx.destination);
+      o.start();
+      setTimeout(() => { try { o.stop(); } catch(e){} }, 120);
+    } catch(e) {}
+  }
+
+  function parseLines(raw){
+    const lines = (raw || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    return lines.map(line => {
+      const cols = line.split('|');
+      const word = (cols[0] || '').trim();
+      const example = (cols[1] || '').trim();
+      const group = (cols[2] || '').trim();
+      const imp = (cols[3] || '').trim();
+      const important = imp.includes('★') || imp === '*' || imp === '1' || imp.toLowerCase()==='true';
+      return { word, example, group, important };
+    }).filter(it => it.word);
+  }
+
+  function refreshGroupOptions(items){
+    const current = groupEl.value || localStorage.getItem(GROUP_KEY) || '';
+    const set = new Set(items.map(i=>i.group).filter(Boolean));
+    groupEl.innerHTML = '';
+    const optAll = document.createElement('option');
+    optAll.value = '';
+    optAll.textContent = 'すべて';
+    groupEl.appendChild(optAll);
+    [...set].sort((a,b)=>a.localeCompare(b)).forEach(g => {
+      const o = document.createElement('option');
+      o.value = g;
+      o.textContent = g;
+      groupEl.appendChild(o);
+    });
+    if ([...groupEl.options].some(o=>o.value===current)) groupEl.value = current;
+    else groupEl.value = '';
+  }
+
+  function applyFilters(items){
+    const g = groupEl.value || '';
+    const star = !!starOnlyEl.checked;
+    return items.filter(it => {
+      if (g && it.group !== g) return false;
+      if (star && !it.important) return false;
+      return true;
+    });
+  }
+
+  function shuffle(arr){
+    for (let i = arr.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function buildBaseItems(){
+    const items = parseLines(wordsEl.value);
+    const filtered = applyFilters(items);
+    const ordered = (orderEl.value === 'shuffle') ? shuffle([...filtered]) : filtered;
+    countInfoEl.textContent = `対象：${ordered.length}件`;
+    return ordered;
+  }
+
+  function buildWordQueue(items){
+    return items.map(it => ({ text: it.word }));
+  }
+
+  function buildWordExampleQueue(items){
+    const q = [];
+    items.forEach(it => {
+      q.push({ text: it.word });
+      if (it.example) q.push({ text: it.example });
+    });
+    return q;
+  }
+
+  function speak(text, onend){
+    const token = runToken;
+    const utter = new SpeechSynthesisUtterance(text);
+    const v = voices.find(v => v.voiceURI === selectedVoiceURI);
+    if (v) utter.voice = v;
+    utter.rate = parseFloat(rateEl.value);
+    utter.onend = () => { if (token !== runToken) return; onend && onend(); };
+    utter.onerror = () => { if (token !== runToken) return; onend && onend(); };
+    synth.speak(utter);
+  }
+
+  function updateNow(){
+    if (!playing || !queue[idx]){ nowEl.style.display = 'none'; return; }
+    nowEl.style.display = 'block';
+    nowEl.textContent = `#${idx+1}/${queue.length}  繰り返し:${rep+1}/${repeatEl.value}\n${queue[idx].text}`;
+  }
+
+  function step(){
+    if (!playing || paused) return;
+    if (idx >= queue.length){
+      playing = false;
+      setStatus('完了');
+      nowEl.style.display = 'none';
+      return;
+    }
+
+    updateNow();
+    speak(queue[idx].text, () => {
+      if (!playing || paused) return;
+      rep++;
+      clearTimer();
+      if (rep < parseInt(repeatEl.value, 10)){
+        timer = setTimeout(step, parseFloat(gapEl.value) * 1000);
+      } else {
+        rep = 0;
+        idx++;
+        timer = setTimeout(step, parseFloat(gapEl.value) * 1000);
+      }
+    });
+  }
+
+  function start(mode){
+    cancelSpeakHard();
+    const base = buildBaseItems();
+    if (!base.length){ setStatus('対象がありません（フィルタで0件の可能性）'); return; }
+
+    if (beepOnEl.checked){ beep(); }
+
+    queue = (mode === 'word-example') ? buildWordExampleQueue(base) : buildWordQueue(base);
+    idx = 0; rep = 0;
+    playing = true; paused = false;
+    setStatus(mode === 'word-example' ? '再生中（単語→例文）…' : '再生中（単語）…');
+
+    const delay = beepOnEl.checked ? 260 : 0;
+    clearTimer();
+    timer = setTimeout(step, delay);
+  }
+
+  // --- voices handling ---
+  function loadVoices(){
+    voices = synth.getVoices();
+    const prev = selectedVoiceURI;
+
+    voiceSel.innerHTML = '';
+    const sorted = voices.slice().sort((a,b)=>{
+      const prio = (v)=>{
+        if (v.lang === 'en-GB') return 3;
+        if (v.lang === 'en-US') return 2;
+        if ((v.lang||'').startsWith('en')) return 1;
+        return 0;
+      };
+      const pa = prio(a), pb = prio(b);
+      if (pa !== pb) return pb - pa;
+      return a.name.localeCompare(b.name);
+    });
+
+    sorted.forEach(v=>{
+      const o = document.createElement('option');
+      o.value = v.voiceURI;
+      o.textContent = `${v.name} — ${v.lang}${v.default ? ' (default)' : ''}`;
+      voiceSel.appendChild(o);
+    });
+
+    if (prev && [...voiceSel.options].some(o=>o.value===prev)){
+      voiceSel.value = prev;
+      selectedVoiceURI = prev;
+    } else if (!selectedVoiceURI && voiceSel.options.length){
+      selectedVoiceURI = voiceSel.options[0].value;
+      voiceSel.value = selectedVoiceURI;
+    } else if (selectedVoiceURI && [...voiceSel.options].some(o=>o.value===selectedVoiceURI)){
+      voiceSel.value = selectedVoiceURI;
+    }
+  }
+
+  voiceSel.addEventListener('change', () => {
+    selectedVoiceURI = voiceSel.value;
+    localStorage.setItem(VOICE_KEY, selectedVoiceURI);
+  });
+
+  // --- prefs persistence ---
+  function restorePrefs(){
+    // words: v1.09 -> fallback v1.08 -> sample
+    const w09 = localStorage.getItem(WORDS_KEY);
+    const w08 = localStorage.getItem(WORDS_KEY_OLD);
+    if (w09 != null && w09.trim() !== ''){
+      wordsEl.value = w09;
+    } else if (w08 != null && w08.trim() !== ''){
+      wordsEl.value = w08;
+      localStorage.setItem(WORDS_KEY, w08); // migrate
+    } else {
+      wordsEl.value = DEFAULT_SAMPLE;
+      localStorage.setItem(WORDS_KEY, DEFAULT_SAMPLE);
+    }
+
+    const star = localStorage.getItem(STAR_KEY);
+    if (star != null) starOnlyEl.checked = (star === 'true');
+
+    const order = localStorage.getItem(ORDER_KEY);
+    if (order && ['inorder','shuffle'].includes(order)) orderEl.value = order;
+
+    const beepOn = localStorage.getItem(BEEP_KEY);
+    beepOnEl.checked = (beepOn == null) ? true : (beepOn === 'true');
+  }
+
+  function persistPrefs(){
+    localStorage.setItem(STAR_KEY, String(!!starOnlyEl.checked));
+    localStorage.setItem(ORDER_KEY, orderEl.value);
+    localStorage.setItem(BEEP_KEY, String(!!beepOnEl.checked));
+    localStorage.setItem(GROUP_KEY, groupEl.value || '');
+    localStorage.setItem(WORDS_KEY, wordsEl.value || '');
+  }
+
+  // --- UI interactions ---
+  function autoPauseForSelect(){
+    if (playing && !paused){
+      paused = true;
+      autoPausedByUI = true;
+      synth.pause();
+      setStatus('一時停止中（選択中）');
+    }
+  }
+
+  function autoResumeIfNeeded(){
+    if (autoPausedByUI){
+      autoPausedByUI = false;
+      paused = false;
+      synth.resume();
+      setStatus('再生中…');
+    }
+  }
+
+  groupEl.addEventListener('pointerdown', autoPauseForSelect);
+  groupEl.addEventListener('focus', autoPauseForSelect);
+  groupEl.addEventListener('change', () => { persistPrefs(); autoResumeIfNeeded(); });
+  groupEl.addEventListener('blur', () => { persistPrefs(); autoResumeIfNeeded(); });
+
+  starOnlyEl.addEventListener('change', persistPrefs);
+  orderEl.addEventListener('change', persistPrefs);
+  beepOnEl.addEventListener('change', persistPrefs);
+
+  insertSampleBtn.addEventListener('click', () => {
+    // overwrite current content
+    wordsEl.value = DEFAULT_SAMPLE;
+    persistPrefs();
+    const items = parseLines(wordsEl.value);
+    refreshGroupOptions(items);
+    buildBaseItems();
+    setStatus('サンプルを挿入しました');
+  });
+
+  let debounce = null;
+  wordsEl.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      persistPrefs();
+      if (!playing){
+        const items = parseLines(wordsEl.value);
+        refreshGroupOptions(items);
+        buildBaseItems();
+      }
+    }, 200);
+  });
+
+  // --- controls ---
+  document.getElementById('playWord').addEventListener('click', () => { persistPrefs(); start('word'); });
+  document.getElementById('playWordExample').addEventListener('click', () => { persistPrefs(); start('word-example'); });
+
+  document.getElementById('pause').addEventListener('click', () => {
+    if (!playing) return;
+    if (!paused){
+      paused = true;
+      synth.pause();
+      setStatus('一時停止中');
+    } else {
+      paused = false;
+      synth.resume();
+      setStatus('再生中…');
+      clearTimer();
+      timer = setTimeout(() => { if (!synth.speaking) step(); }, 60);
+    }
+  });
+
+  document.getElementById('stop').addEventListener('click', () => {
+    playing = false;
+    paused = false;
+    cancelSpeakHard();
+    setStatus('停止');
+    nowEl.style.display = 'none';
+  });
+
+  document.getElementById('next').addEventListener('click', () => {
+    if (!playing) return;
+    cancelSpeakHard();
+    rep = 0;
+    idx++;
+    if (idx >= queue.length){
+      playing = false;
+      setStatus('完了');
+      nowEl.style.display = 'none';
+    } else {
+      setStatus('スキップ→次');
+      clearTimer();
+      timer = setTimeout(step, 30);
+    }
+  });
+
+  // init
+  restorePrefs();
+  loadVoices();
+  synth.addEventListener('voiceschanged', loadVoices);
+
+  // initial group list
+  const initItems = parseLines(wordsEl.value);
+  refreshGroupOptions(initItems);
+  // restore group
+  const savedGroup = localStorage.getItem(GROUP_KEY) || '';
+  if ([...groupEl.options].some(o=>o.value===savedGroup)) groupEl.value = savedGroup;
+  buildBaseItems();
+
+})();
+</script>
+</body>
+</html>
