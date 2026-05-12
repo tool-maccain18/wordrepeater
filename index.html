@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>英単語リピート（オフライン）</title>
+
+  <style>
+    /* ===============================
+       カラーテーマ（薄い水色基調）
+       =============================== */
+    :root{
+      --bg:#eaf4fb;
+      --card:#ffffff;
+      --muted:#4f6b82;
+      --text:#1c2b36;
+      --accent:#4ea1ff;
+      --danger:#e55363;
+      --ok:#2fbf8f;
+      --border:rgba(30,60,90,.18);
+      --shadow:0 8px 20px rgba(40,80,120,.15);
+      --radius:16px;
+      --btnRadius:14px;
+      --pad:14px;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif;
+      background:
+        radial-gradient(1200px 700px at 20% -10%, #ffffff 0%, transparent 55%),
+        radial-gradient(900px 600px at 110% 10%, rgba(78,161,255,.18), transparent 55%),
+        var(--bg);
+      color:var(--text);
+      line-height:1.45;
+    }
+
+    .wrap{
+      max-width:980px;
+      margin:0 auto;
+      padding:16px;
+    }
+
+    h1{
+      font-size:18px;
+      margin:10px 0 14px;
+      font-weight:700;
+    }
+
+    .grid{
+      display:grid;
+      gap:12px;
+      grid-template-columns:1fr;
+    }
+    @media (min-width:900px){
+      .grid{ grid-template-columns:1.2fr .8fr; }
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:var(--pad);
+    }
+
+    label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+
+    textarea,
+    select,
+    input[type="number"],
+    input[type="range"]{
+      width:100%;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#f7fbff;
+      color:var(--text);
+      padding:10px;
+      font-size:14px;
+    }
+
+    textarea{
+      min-height:220px;
+      resize:vertical;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .btn{
+      border:1px solid var(--border);
+      background:linear-gradient(180deg,#ffffff,#f2f8ff);
+      color:var(--text);
+      border-radius:var(--btnRadius);
+      padding:12px;
+      font-size:14px;
+      font-weight:700;
+      cursor:pointer;
+    }
+
+    .btn.primary{
+      border-color:rgba(78,161,255,.5);
+      background:linear-gradient(180deg,#eaf4ff,#dbeeff);
+    }
+
+    .btn.danger{
+      border-color:rgba(229,83,99,.5);
+      background:linear-gradient(180deg,#ffecee,#ffdfe3);
+    }
+
+    .btn.small{
+      padding:8px 10px;
+      font-size:13px;
+    }
+
+    .status{
+      margin-top:10px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:#f7fbff;
+    }
+
+    .pill{
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:12px;
+      background:#ffffff;
+      color:var(--muted);
+    }
+
+    .status .now{
+      font-weight:700;
+      margin-bottom:6px;
+    }
+
+    .muted{ color:var(--muted); font-size:12px; }
+
+    .divider{
+      height:1px;
+      background:var(--border);
+      margin:12px 0;
+    }
+
+    .radio{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .radio .opt{
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:8px 10px;
+      background:#f7fbff;
+      cursor:pointer;
+    }
+
+    .inline{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      font-size:13px;
+    }
+
+    .toast{
+      margin-top:6px;
+      font-size:13px;
+      color:var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1>英単語リピート（オフライン）</h1>
+
+  <div class="grid">
+    <!-- 左：入力・再生 -->
+    <div class="card">
+      <label>単語リスト（1行=1レコード / | 区切り）</label>
+      <textarea id="inputText"></textarea>
+
+      <div class="row" style="margin-top:8px;">
+        <input type="file" id="fileInput" accept=".txt">
+        <button class="btn small" id="btnApply">🔄 解析</button>
+        <button class="btn small danger" id="btnClear">🧹 クリア</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <button class="btn primary" id="btnPlayWord">▶ 再生（単語）</button>
+        <button class="btn primary" id="btnPlayWE">▶▶ 再生（単語→例文）</button>
+      </div>
+
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" id="btnPause">⏸ 一時停止/再開</button>
+        <button class="btn danger" id="btnStop">⏹ 停止</button>
+        <button class="btn" id="btnNext">⏭ 次へ</button>
+      </div>
+
+      <div class="status">
+        <div class="now" id="nowText">（未再生）</div>
+        <div class="row">
+          <span class="pill" id="idxInfo">Index</span>
+          <span class="pill" id="repInfo">Repeat</span>
+          <span class="pill" id="countInfo">対象</span>
+        </div>
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+
+    <!-- 右：設定 -->
+    <div class="card">
+      <label>音声</label>
+      <select id="voiceSelect"></select>
+      <button class="btn small" id="btnRefreshVoices">🔁 音声更新</button>
+
+      <div class="divider"></div>
+
+      <label>話速</label>
+      <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1">
+
+      <label style="margin-top:8px;">間隔（秒）</label>
+      <input type="number" id="gap" value="0.8" step="0.1">
+
+      <label style="margin-top:8px;">繰り返し回数</label>
+      <input type="number" id="repeat" value="2" min="1">
+
+      <div class="divider"></div>
+
+      <label>順番</label>
+      <div class="radio">
+        <label class="opt"><input type="radio" name="order" value="input" checked> 入力順</label>
+        <label class="opt"><input type="radio" name="order" value="shuffle"> シャッフル</label>
+      </div>
+
+      <div class="divider"></div>
+
+      <label>グループ</label>
+      <select id="groupSelect"></select>
+
+      <div class="inline" style="margin-top:8px;">
+        <input type="checkbox" id="starOnly">
+        <label for="starOnly">★のみ</label>
+      </div>
+
+      <div class="inline" style="margin-top:6px;">
+        <input type="checkbox" id="beepOn" checked>
+        <label for="beepOn">開始ビープ</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // -----------------------------
+  // localStorage keys (required + a few extras for usability)
+  // -----------------------------
+  const LS = {
+    text: "wr_text_v2",
+    voiceURI: "wr_voiceURI_v2",
+    group: "wr_group_v2",
+    starOnly: "wr_starOnly_v2",
+    order: "wr_order_v2",
+    beepOn: "wr_beepOn_v2",
+    rate: "wr_rate_v2",
+    gap: "wr_gap_v2",
+    repeat: "wr_repeat_v2",
+  };
+
+  // -----------------------------
+  // Elements
+  // -----------------------------
+  const el = {
+    inputText: document.getElementById("inputText"),
+    fileInput: document.getElementById("fileInput"),
+    btnApply: document.getElementById("btnApply"),
+    btnClear: document.getElementById("btnClear"),
+
+    btnPlayWord: document.getElementById("btnPlayWord"),
+    btnPlayWE: document.getElementById("btnPlayWE"),
+    btnPause: document.getElementById("btnPause"),
+    btnStop: document.getElementById("btnStop"),
+    btnNext: document.getElementById("btnNext"),
+
+    voiceSelect: document.getElementById("voiceSelect"),
+    voiceHint: document.getElementById("voiceHint"),
+    btnRefreshVoices: document.getElementById("btnRefreshVoices"),
+
+    rate: document.getElementById("rate"),
+    rateVal: document.getElementById("rateVal"),
+    gap: document.getElementById("gap"),
+    repeat: document.getElementById("repeat"),
+
+    groupSelect: document.getElementById("groupSelect"),
+    starOnly: document.getElementById("starOnly"),
+    beepOn: document.getElementById("beepOn"),
+
+    nowText: document.getElementById("nowText"),
+    idxInfo: document.getElementById("idxInfo"),
+    repInfo: document.getElementById("repInfo"),
+    countInfo: document.getElementById("countInfo"),
+    toast: document.getElementById("toast"),
+  };
+
+  // -----------------------------
+  // State
+  // -----------------------------
+  let allRecords = [];        // parsed from textarea (all)
+  let filteredQueue = [];     // after filters + order (play queue)
+
+  // playback state
+  const player = {
+    isRunning: false,
+    isPaused: false,
+    mode: "word",            // "word" or "we"
+    index: 0,                // queue index
+    step: 0,                 // within item: 0=word, 1=example
+    repeatNow: 1,            // current repeat (1..repeatSetting)
+    runToken: 0,             // invalidate callbacks across sessions/stop
+    utterToken: 0,           // invalidate callbacks per utterance (for Next)
+    timerId: null,           // single setTimeout (gap scheduling)
+    currentUtter: null,
+    resumeAfterDropdown: false,
+  };
+
+  // voice selection: keep by voiceURI (NOT object ref)
+  let cachedVoices = [];
+  let selectedVoiceURI = ""; // persisted key; do not reset unexpectedly
+
+  // WebAudio (beep)
+  let audioCtx = null;
+
+  // -----------------------------
+  // Utilities
+  // -----------------------------
+  const sleepMicro = (fn) => queueMicrotask(fn);
+
+  function safeParseNumber(v, def, min, max) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return def;
+    return Math.min(max, Math.max(min, n));
+  }
+
+  function toast(msg, kind = "") {
+    el.toast.textContent = msg || "";
+    el.toast.className = "toast" + (kind ? " " + kind : "");
+  }
+
+  function setStatusNow(text) {
+    el.nowText.textContent = text || "（未再生）";
+  }
+
+  function updateStatus() {
+    const total = filteredQueue.length;
+    const i = player.isRunning ? (player.index + 1) : 0;
+    el.idxInfo.textContent = `Index: ${player.isRunning ? i : "-"} / ${total || "-"}`;
+    const repMax = getRepeatSetting();
+    el.repInfo.textContent = `Repeat: ${player.isRunning ? player.repeatNow : "-"} / ${repMax}`;
+    el.countInfo.textContent = `対象: ${total}件`;
+  }
+
+  function clearTimer() {
+    if (player.timerId != null) {
+      clearTimeout(player.timerId);
+      player.timerId = null;
+    }
+  }
+
+  function isImportantToken(s) {
+    const t = (s || "").trim();
+    if (!t) return false;
+    if (t === "★" || t === "*") return true;
+    if (t === "1") return true;
+    if (/^true$/i.test(t)) return true;
+    return false;
+  }
+
+  function parseInput(text) {
+    const lines = (text || "").split(/\r?\n/);
+    const out = [];
+    for (let ln = 0; ln < lines.length; ln++) {
+      const raw = lines[ln];
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split("|");
+      const word = (parts[0] || "").trim();
+      const example = (parts[1] || "").trim();
+      const group = (parts[2] || "").trim();
+      const imp = (parts[3] || "").trim();
+      if (!word) continue;
+      out.push({
+        word,
+        example,
+        group,
+        important: isImportantToken(imp),
+        _line: ln + 1,
+      });
+    }
+    return out;
+  }
+
+  function uniqueGroups(records) {
+    const set = new Set();
+    for (const r of records) {
+      if (r.group) set.add(r.group);
+    }
+    return Array.from(set).sort((a,b) => a.localeCompare(b, "ja"));
+  }
+
+  function fisherYatesShuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function getOrderSetting() {
+    const v = document.querySelector('input[name="order"]:checked')?.value || "input";
+    return (v === "shuffle") ? "shuffle" : "input";
+  }
+
+  function getGapSetting() {
+    return safeParseNumber(el.gap.value, 0.8, 0, 10);
+  }
+
+  function getRateSetting() {
+    return safeParseNumber(el.rate.value, 1.0, 0.6, 1.4);
+  }
+
+  function getRepeatSetting() {
+    return safeParseNumber(el.repeat.value, 2, 1, 20);
+  }
+
+  function getGroupSetting() {
+    return el.groupSelect.value || "__all__";
+  }
+
+  function getStarOnlySetting() {
+    return !!el.starOnly.checked;
+  }
+
+  function getBeepOnSetting() {
+    return !!el.beepOn.checked;
+  }
+
+  // -----------------------------
+  // Persistence
+  // -----------------------------
+  function saveSettings() {
+    try {
+      localStorage.setItem(LS.text, el.inputText.value || "");
+      localStorage.setItem(LS.voiceURI, selectedVoiceURI || "");
+      localStorage.setItem(LS.group, getGroupSetting());
+      localStorage.setItem(LS.starOnly, String(getStarOnlySetting()));
+      localStorage.setItem(LS.order, getOrderSetting());
+      localStorage.setItem(LS.beepOn, String(getBeepOnSetting()));
+      // extra
+      localStorage.setItem(LS.rate, String(getRateSetting()));
+      localStorage.setItem(LS.gap, String(getGapSetting()));
+      localStorage.setItem(LS.repeat, String(getRepeatSetting()));
+    } catch (e) {
+      // storage might be blocked; ignore and keep running
+    }
+  }
+
+  function restoreSettings() {
+    try {
+      const t = localStorage.getItem(LS.text);
+      if (t != null) el.inputText.value = t;
+
+      selectedVoiceURI = localStorage.getItem(LS.voiceURI) || "";
+
+      const grp = localStorage.getItem(LS.group);
+      if (grp != null) {
+        // groupSelect options are built after parse; store it for later apply
+        el.groupSelect.dataset.restoreValue = grp;
+      }
+
+      const star = localStorage.getItem(LS.starOnly);
+      if (star != null) el.starOnly.checked = (star === "true");
+
+      const ord = localStorage.getItem(LS.order);
+      if (ord === "shuffle" || ord === "input") {
+        const radio = document.querySelector(`input[name="order"][value="${ord}"]`);
+        if (radio) radio.checked = true;
+      }
+
+      const beep = localStorage.getItem(LS.beepOn);
+      if (beep != null) el.beepOn.checked = (beep === "true");
+
+      // extra numeric settings
+      const r = localStorage.getItem(LS.rate);
+      if (r != null) el.rate.value = String(safeParseNumber(r, 1.0, 0.6, 1.4));
+      const g = localStorage.getItem(LS.gap);
+      if (g != null) el.gap.value = String(safeParseNumber(g, 0.8, 0, 10));
+      const rep = localStorage.getItem(LS.repeat);
+      if (rep != null) el.repeat.value = String(safeParseNumber(rep, 2, 1, 20));
+
+      el.rateVal.textContent = getRateSetting().toFixed(2).replace(/\.00$/, ".0");
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // -----------------------------
+  // Voices handling (critical: do not reset selection)
+  // -----------------------------
+  function getVoicesSafe() {
+    try {
+      return window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function findVoiceByURI(uri) {
+    if (!uri) return null;
+    return cachedVoices.find(v => v.voiceURI === uri) || null;
+  }
+
+  function populateVoices({ keepSelection = true } = {}) {
+    cachedVoices = getVoicesSafe();
+
+    // Build options
+    const prev = keepSelection ? (selectedVoiceURI || el.voiceSelect.value || "") : "";
+    el.voiceSelect.innerHTML = "";
+
+    if (!window.speechSynthesis) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "（SpeechSynthesis 非対応）";
+      el.voiceSelect.appendChild(opt);
+      el.voiceSelect.disabled = true;
+      el.voiceHint.textContent = "このブラウザは音声合成に対応していません。";
+      return;
+    }
+
+    if (!cachedVoices.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "（音声が見つかりません）";
+      el.voiceSelect.appendChild(opt);
+      el.voiceSelect.disabled = false; // allow later update
+      el.voiceHint.textContent = "音声がまだロードされていない可能性があります。更新してください。";
+      // do not destroy selectedVoiceURI; keep it.
+      return;
+    }
+
+    // Sort: English voices first (handy for learning), then others; keep stable.
+    const voicesSorted = [...cachedVoices].sort((a,b) => {
+      const ae = /^en(-|_)?/i.test(a.lang) ? 0 : 1;
+      const be = /^en(-|_)?/i.test(b.lang) ? 0 : 1;
+      if (ae !== be) return ae - be;
+      return (a.lang || "").localeCompare(b.lang || "") || (a.name || "").localeCompare(b.name || "");
+    });
+
+    for (const v of voicesSorted) {
+      const opt = document.createElement("option");
+      opt.value = v.voiceURI; // key by voiceURI
+      const tag = `${v.lang || "??"}`;
+      const local = v.localService ? "local" : "net";
+      opt.textContent = `${v.name} (${tag}, ${local})`;
+      el.voiceSelect.appendChild(opt);
+    }
+
+    // Restore selection by voiceURI if possible.
+    if (prev && voicesSorted.some(v => v.voiceURI === prev)) {
+      el.voiceSelect.value = prev;
+      selectedVoiceURI = prev;
+      el.voiceHint.textContent = "音声を保持しました（voiceURI）。";
+    } else {
+      // If no previous selection exists, keep current select if it matches; else choose first.
+      const current = el.voiceSelect.value;
+      if (current) {
+        selectedVoiceURI = current;
+      } else {
+        el.voiceSelect.selectedIndex = 0;
+        selectedVoiceURI = el.voiceSelect.value || "";
+      }
+      el.voiceHint.textContent = prev ? "保存された音声が見つからないため、利用可能な音声に切替えました。" : "音声を選択してください。";
+    }
+
+    el.voiceSelect.disabled = false;
+  }
+
+  // voiceschanged can fire multiple times; never reset user's choice unexpectedly.
+  function onVoicesChanged() {
+    populateVoices({ keepSelection: true });
+  }
+
+  // -----------------------------
+  // Groups & filters
+  // -----------------------------
+  function populateGroups(records) {
+    const groups = uniqueGroups(records);
+
+    const prev = el.groupSelect.value || el.groupSelect.dataset.restoreValue || "__all__";
+    el.groupSelect.innerHTML = "";
+
+    const optAll = document.createElement("option");
+    optAll.value = "__all__";
+    optAll.textContent = "すべて";
+    el.groupSelect.appendChild(optAll);
+
+    for (const g of groups) {
+      const opt = document.createElement("option");
+      opt.value = g;
+      opt.textContent = g;
+      el.groupSelect.appendChild(opt);
+    }
+
+    // Restore selection if possible
+    if (prev && (prev === "__all__" || groups.includes(prev))) {
+      el.groupSelect.value = prev;
+    } else {
+      el.groupSelect.value = "__all__";
+    }
+    delete el.groupSelect.dataset.restoreValue;
+  }
+
+  function buildFilteredQueue(mode) {
+    const group = getGroupSetting();
+    const starOnly = getStarOnlySetting();
+
+    let arr = allRecords.filter(r => {
+      if (group !== "__all__" && r.group !== group) return false;
+      if (starOnly && !r.important) return false;
+      // In word->example mode, skip records without example (acceptance test)
+      if (mode === "we" && !r.example) return false;
+      return true;
+    });
+
+    if (getOrderSetting() === "shuffle") {
+      arr = fisherYatesShuffle(arr.slice());
+    } else {
+      arr = arr.slice();
+    }
+    return arr;
+  }
+
+  function applyParseAndUI({ silentToast = false } = {}) {
+    allRecords = parseInput(el.inputText.value || "");
+    populateGroups(allRecords);
+
+    // Recompute filteredQueue only for display (not to interrupt running session)
+    const tempMode = player.mode || "word";
+    filteredQueue = buildFilteredQueue(tempMode);
+    updateStatus();
+
+    if (!silentToast) {
+      toast(`解析しました：全${allRecords.length}行 → 対象${filteredQueue.length}件`, "ok");
+    }
+    saveSettings();
+  }
+
+  // -----------------------------
+  // WebAudio beep (Bluetooth warm-up)
+  // -----------------------------
+  async function ensureAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === "suspended") {
+      try { await audioCtx.resume(); } catch {}
+    }
+    return audioCtx;
+  }
+
+  async function playBeep() {
+    // Short, low-volume beep; ignore errors.
+    try {
+      const ctx = await ensureAudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 880; // A5
+      g.gain.value = 0.03;     // small volume
+      o.connect(g);
+      g.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      o.start(now);
+      // 50ms beep with quick fade
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.03, now + 0.01);
+      g.gain.linearRampToValueAtTime(0.001, now + 0.05);
+      o.stop(now + 0.06);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // -----------------------------
+  // Speech playback core (critical: runToken + single timeout)
+  // -----------------------------
+  function speakText(text, { onDone } = {}) {
+    if (!window.speechSynthesis) {
+      toast("このブラウザは SpeechSynthesis 非対応です。", "bad");
+      onDone?.();
+      return;
+    }
+
+    // invalidate previous utterance callbacks for "Next" behavior
+    player.utterToken++;
+    const myRun = player.runToken;
+    const myUtter = player.utterToken;
+
+    // Clear previous scheduling timer
+    clearTimer();
+
+    // Cancel any queued speech to avoid overlap, but do NOT bump runToken here
+    // (we rely on utterToken to ignore delayed callbacks)
+    try { window.speechSynthesis.cancel(); } catch {}
+
+    const u = new SpeechSynthesisUtterance(text);
+    const v = findVoiceByURI(selectedVoiceURI);
+    if (v) u.voice = v;
+    u.rate = getRateSetting();
+    u.pitch = 1.0;
+    u.volume = 1.0;
+
+    // Store current utterance ref
+    player.currentUtter = u;
+
+    const done = () => {
+      // ignore stale callbacks
+      if (player.runToken !== myRun) return;
+      if (player.utterToken !== myUtter) return;
+      onDone?.();
+    };
+
+    u.onend = done;
+    u.onerror = done;
+
+    try {
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      // If speak fails, attempt to continue gracefully
+      done();
+    }
+  }
+
+  function scheduleNextStep() {
+    // single setTimeout for gap scheduling (spec requirement)
+    clearTimer();
+    const gapMs = Math.round(getGapSetting() * 1000);
+    const myRun = player.runToken;
+    player.timerId = setTimeout(() => {
+      if (player.runToken !== myRun) return;
+      advanceAndSpeak();
+    }, Math.max(0, gapMs));
+  }
+
+  function currentStepsForItem(item) {
+    if (!item) return [];
+    if (player.mode === "word") return [item.word];
+    // "we" mode: word -> example (example exists by filtering)
+    return item.example ? [item.word, item.example] : [];
+  }
+
+  function updateNowDisplayForCurrent(stepText) {
+    const item = filteredQueue[player.index];
+    const label = item ? (player.mode === "we" && player.step === 1 ? "例文" : "単語") : "";
+    setStatusNow(item ? `${label}: ${stepText}` : "（未再生）");
+    updateStatus();
+  }
+
+  function speakCurrent() {
+    if (!player.isRunning) return;
+    if (!filteredQueue.length) {
+      stopPlayback("対象が0件です。フィルタ/入力を確認してください。");
+      return;
+    }
+    if (player.index < 0 || player.index >= filteredQueue.length) {
+      finishPlayback("完了しました。");
+      return;
+    }
+
+    const item = filteredQueue[player.index];
+    const steps = currentStepsForItem(item);
+    if (!steps.length) {
+      // Shouldn't happen because we filter empty-example in we-mode, but keep safe
+      // Move on.
+      advanceItem();
+      sleepMicro(() => speakCurrent());
+      return;
+    }
+
+    if (player.step < 0 || player.step >= steps.length) player.step = 0;
+    const text = steps[player.step];
+
+    updateNowDisplayForCurrent(text);
+
+    speakText(text, {
+      onDone: () => {
+        // After each utterance ends, schedule next by gap
+        scheduleNextStep();
+      }
+    });
+  }
+
+  function advanceItem() {
+    player.step = 0;
+    player.repeatNow = 1;
+    player.index++;
+  }
+
+  function advanceAndSpeak() {
+    if (!player.isRunning) return;
+    const item = filteredQueue[player.index];
+    const steps = currentStepsForItem(item);
+
+    // Determine next position:
+    if (player.mode === "word") {
+      // only word
+      if (player.repeatNow < getRepeatSetting()) {
+        player.repeatNow++;
+        player.step = 0;
+      } else {
+        advanceItem();
+      }
+    } else {
+      // word -> example (2 steps)
+      if (player.step + 1 < steps.length) {
+        player.step++;
+      } else {
+        // step done for this repeat
+        if (player.repeatNow < getRepeatSetting()) {
+          player.repeatNow++;
+          player.step = 0;
+        } else {
+          advanceItem();
+        }
+      }
+    }
+
+    if (player.index >= filteredQueue.length) {
+      finishPlayback("完了しました。");
+      return;
+    }
+    speakCurrent();
+  }
+
+  function startPlayback(mode) {
+    // Prepare session
+    // Stop fully (invalidate callbacks)
+    stopPlayback("", { silent: true });
+
+    // Update parse + filters
+    applyParseAndUI({ silentToast: true });
+    player.mode = mode;
+
+    // Build queue for this session
+    filteredQueue = buildFilteredQueue(mode);
+    updateStatus();
+
+    if (!filteredQueue.length) {
+      toast(mode === "we"
+        ? "対象が0件です（単語→例文モードは例文なしレコードをスキップ）。"
+        : "対象が0件です。", "bad");
+      setStatusNow("（未再生）");
+      return;
+    }
+
+    // Start
+    player.isRunning = true;
+    player.isPaused = false;
+    player.index = 0;
+    player.step = 0;
+    player.repeatNow = 1;
+
+    // New run token for this session
+    player.runToken++;
+    const myRun = player.runToken;
+
+    // Warm-up beep (Bluetooth対策)
+    const doBeep = getBeepOnSetting();
+    saveSettings();
+
+    const begin = () => {
+      if (player.runToken !== myRun) return;
+      speakCurrent();
+      toast(mode === "we" ? "再生開始：単語→例文" : "再生開始：単語のみ", "ok");
+    };
+
+    if (doBeep) {
+      // beep then slight delay (no extra setTimeout used for sequencing: use micro + rAF)
+      playBeep().finally(() => {
+        // Minimal delay so BT speaker wakes; use single rAF chain (not setTimeout)
+        requestAnimationFrame(() => requestAnimationFrame(begin));
+      });
+    } else {
+      begin();
+    }
+  }
+
+  function pauseToggle() {
+    if (!window.speechSynthesis) return;
+    if (!player.isRunning) return;
+
+    try {
+      if (!player.isPaused) {
+        window.speechSynthesis.pause();
+        player.isPaused = true;
+        toast("一時停止しました。", "ok");
+      } else {
+        window.speechSynthesis.resume();
+        player.isPaused = false;
+        toast("再開しました。", "ok");
+      }
+    } catch (e) {
+      // ignore
+    }
+    updateStatus();
+  }
+
+  function stopPlayback(msg = "停止しました。", { silent = false } = {}) {
+    // Invalidate everything: runToken bump + utterToken bump
+    player.runToken++;
+    player.utterToken++;
+    clearTimer();
+
+    player.isRunning = false;
+    player.isPaused = false;
+    player.index = 0;
+    player.step = 0;
+    player.repeatNow = 1;
+    player.currentUtter = null;
+
+    try {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    } catch (e) {}
+
+    setStatusNow("（未再生）");
+    updateStatus();
+    if (!silent) toast(msg, "ok");
+  }
+
+  function finishPlayback(msg = "完了しました。") {
+    // End session without starting new one
+    player.isRunning = false;
+    player.isPaused = false;
+    clearTimer();
+    try { window.speechSynthesis?.cancel(); } catch {}
+    toast(msg, "ok");
+    setStatusNow("（完了）");
+    updateStatus();
+  }
+
+  function nextItem() {
+    if (!player.isRunning) return;
+
+    // Cancel current utterance and ignore its late callbacks, but keep the session (runToken).
+    player.utterToken++;
+    clearTimer();
+    try { window.speechSynthesis?.cancel(); } catch {}
+
+    // Move to next item (top)
+    advanceItem();
+
+    if (player.index >= filteredQueue.length) {
+      finishPlayback("完了しました。");
+      return;
+    }
+
+    // Speak next on microtask (avoid extra setTimeout)
+    sleepMicro(() => {
+      if (!player.isRunning) return;
+      speakCurrent();
+      toast("次へ進みました。", "ok");
+    });
+  }
+
+  // -----------------------------
+  // Recompute targets when filters/settings change (without freezing)
+  // -----------------------------
+  function refreshTargetsForDisplay() {
+    // Do not forcibly stop playback; just update display target count.
+    // Playback queue is created at start; you can restart to reflect new filters immediately.
+    applyParseAndUI({ silentToast: true });
+    // If running, keep current queue to avoid sudden jumps. But reflect "対象件数" as "次回反映".
+    if (player.isRunning) {
+      const nextQueue = buildFilteredQueue(player.mode);
+      el.countInfo.textContent = `対象: ${nextQueue.length}件（次回再生から反映）`;
+    }
+    saveSettings();
+  }
+
+  // -----------------------------
+  // Dropdown pause/resume behavior (group select)
+  // - On open: auto-pause
+  // - On change/close: auto-resume if we paused for dropdown
+  // -----------------------------
+  function onDropdownOpen() {
+    if (player.isRunning && !player.isPaused) {
+      pauseToggle();
+      player.resumeAfterDropdown = true;
+    } else {
+      player.resumeAfterDropdown = false;
+    }
+  }
+  function onDropdownCloseOrChange() {
+    // Apply filter immediately to display / next run.
+    refreshTargetsForDisplay();
+
+    if (player.isRunning && player.isPaused && player.resumeAfterDropdown) {
+      // Resume if we paused because of dropdown open
+      pauseToggle();
+    }
+    player.resumeAfterDropdown = false;
+  }
+
+  // -----------------------------
+  // Event wiring
+  // -----------------------------
+  function bindEvents() {
+    // Input persistence
+    let inputDebounce = null;
+    el.inputText.addEventListener("input", () => {
+      // Debounce parse to keep UI responsive on mobile
+      saveSettings();
+      clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => refreshTargetsForDisplay(), 250);
+    });
+
+    el.btnApply.addEventListener("click", () => applyParseAndUI());
+    el.btnClear.addEventListener("click", () => {
+      stopPlayback("", { silent:true });
+      el.inputText.value = "";
+      applyParseAndUI({ silentToast:true });
+      toast("クリアしました。", "ok");
+    });
+
+    el.fileInput.addEventListener("change", () => {
+      const f = el.fileInput.files && el.fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        el.inputText.value = String(reader.result || "");
+        applyParseAndUI();
+      };
+      reader.onerror = () => toast("ファイル読み込みに失敗しました。", "bad");
+      reader.readAsText(f);
+      el.fileInput.value = "";
+    });
+
+    // Playback buttons
+    el.btnPlayWord.addEventListener("click", () => startPlayback("word"));
+    el.btnPlayWE.addEventListener("click", () => startPlayback("we"));
+    el.btnPause.addEventListener("click", () => pauseToggle());
+    el.btnStop.addEventListener("click", () => stopPlayback());
+    el.btnNext.addEventListener("click", () => nextItem());
+
+    // Settings changes
+    el.rate.addEventListener("input", () => {
+      el.rateVal.textContent = getRateSetting().toFixed(2).replace(/\.00$/, ".0");
+      saveSettings();
+    });
+    el.gap.addEventListener("change", () => saveSettings());
+    el.repeat.addEventListener("change", () => saveSettings());
+
+    // order radios
+    document.querySelectorAll('input[name="order"]').forEach(r => {
+      r.addEventListener("change", () => {
+        refreshTargetsForDisplay();
+        saveSettings();
+      });
+    });
+
+    // starOnly + beep
+    el.starOnly.addEventListener("change", () => { refreshTargetsForDisplay(); saveSettings(); });
+    el.beepOn.addEventListener("change", () => saveSettings());
+
+    // group dropdown: pause on open
+    const openEvents = ["mousedown", "touchstart", "pointerdown"];
+    openEvents.forEach(ev => {
+      el.groupSelect.addEventListener(ev, () => onDropdownOpen(), { passive:true });
+    });
+    el.groupSelect.addEventListener("change", () => onDropdownCloseOrChange());
+    el.groupSelect.addEventListener("blur", () => onDropdownCloseOrChange());
+
+    // voice selection
+    el.voiceSelect.addEventListener("change", () => {
+      selectedVoiceURI = el.voiceSelect.value || "";
+      saveSettings();
+      toast("音声を保存しました。", "ok");
+    });
+    el.btnRefreshVoices.addEventListener("click", () => {
+      populateVoices({ keepSelection: true });
+      saveSettings();
+    });
+
+    // If page is hidden, some browsers behave oddly; keep safe
+    document.addEventListener("visibilitychange", () => {
+      // Do not auto-stop; just keep UI consistent.
+      updateStatus();
+    });
+  }
+
+  // -----------------------------
+  // Init
+  // -----------------------------
+  function init() {
+    restoreSettings();
+    bindEvents();
+
+    // Parse initial data and build group list
+    applyParseAndUI({ silentToast:true });
+    toast("準備OK。", "ok");
+
+    // Voices
+    if (window.speechSynthesis) {
+      window.speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
+      // initial populate (some browsers already have voices)
+      populateVoices({ keepSelection: true });
+      // Some browsers require a second call after a tick
+      setTimeout(() => populateVoices({ keepSelection: true }), 50);
+    } else {
+      populateVoices({ keepSelection: true });
+    }
+
+    updateStatus();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
