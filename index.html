@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>英単語リピート（オフライン）</title>
+  <title>Spelling Test対策用　リピート再生ツール</title>
 
   <style>
     /* ===============================
@@ -54,8 +54,35 @@
       gap:12px;
       grid-template-columns:1fr;
     }
+    .input-card{ order:1; }
+    .settings-card{ order:2; }
+    .playback-card{ order:3; }
+    .review-card{ order:4; }
     @media (min-width:900px){
-      .grid{ grid-template-columns:1.2fr .8fr; }
+      .grid{
+        grid-template-columns:1.2fr .8fr;
+        align-items:start;
+      }
+      .input-card{
+        order:1;
+        grid-column:1;
+        grid-row:1;
+      }
+      .playback-card{
+        order:2;
+        grid-column:1;
+        grid-row:2;
+      }
+      .review-card{
+        order:4;
+        grid-column:1;
+        grid-row:3;
+      }
+      .settings-card{
+        order:3;
+        grid-column:2;
+        grid-row:1 / span 3;
+      }
     }
 
     .card{
@@ -65,6 +92,82 @@
       box-shadow:var(--shadow);
       padding:var(--pad);
     }
+    .card-title{
+      margin:0 0 4px;
+      font-size:15px;
+      font-weight:700;
+      color:var(--text);
+      letter-spacing:.01em;
+    }
+    .card-desc{
+      margin:0 0 12px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .format-hint{
+      display:inline-block;
+      margin-top:4px;
+      color:var(--muted);
+      font-weight:500;
+    }
+    .input-card{
+      background:linear-gradient(180deg,#ffffff,#f6f9fc);
+      border-top:4px solid #d6e4f0;
+    }
+    .settings-card{
+      background:linear-gradient(180deg,#ffffff,#f3fbf7);
+      border-top:4px solid #8fd8b6;
+    }
+    .playback-card{
+      background:linear-gradient(180deg,#ffffff,#eef6ff);
+      border-top:4px solid #7db7ff;
+    }
+    .review-card{
+      background:linear-gradient(180deg,#ffffff,#f7f4ff);
+      border-top:4px solid #b9a7ff;
+    }
+    .review-meta{
+      margin:0 0 10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .review-list{
+      margin:0;
+      padding-left:22px;
+      max-height:280px;
+      overflow:auto;
+    }
+    .review-list li{
+      padding:8px 0;
+      border-bottom:1px solid var(--border);
+    }
+    .review-list li:last-child{
+      border-bottom:none;
+    }
+    .review-word{
+      font-weight:700;
+      color:var(--text);
+    }
+    .review-example{
+      margin-top:2px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .review-badges{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:4px;
+    }
+    .review-badge{
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:2px 7px;
+      font-size:11px;
+      color:var(--muted);
+      background:#ffffff;
+    }
+
 
     label{
       display:block;
@@ -185,33 +288,35 @@
 
 <body>
 <div class="wrap">
-  <h1>英単語リピート（オフライン）</h1>
+  <h1>Spelling Test対策用　リピート再生ツール</h1>
 
   <div class="grid">
-    <!-- 左：入力・再生 -->
-    <div class="card">
-      <label>単語リスト（1行=1レコード / | 区切り）</label>
+    <!-- ① 単語リストの準備 -->
+    <div class="card input-card">
+      <h2 class="card-title">① 単語リストの準備</h2>
+      <p class="card-desc">手入力または.txtファイルで、読み上げる単語リストを用意します。</p>
+      <label>単語リスト入力（or取り込み）欄<br><span class="format-hint">1行=1レコード / 英単語|例文|グループ|重要フラグ（任意）</span></label>
       <textarea id="inputText"></textarea>
-
       <div class="row" style="margin-top:8px;">
         <input type="file" id="fileInput" accept=".txt">
         <button class="btn small" id="btnApply">🔄 解析</button>
         <button class="btn small danger" id="btnClear">🧹 クリア</button>
       </div>
+    </div>
 
-      <div class="divider"></div>
-
+    <!-- ③ 再生と進行状況 -->
+    <div class="card playback-card">
+      <h2 class="card-title">③ 再生と進行状況</h2>
+      <p class="card-desc">再生を開始し、現在位置と繰り返し回数を確認します。</p>
       <div class="row">
         <button class="btn primary" id="btnPlayWord">▶ 再生（単語）</button>
         <button class="btn primary" id="btnPlayWE">▶▶ 再生（単語→例文）</button>
       </div>
-
       <div class="row" style="margin-top:8px;">
         <button class="btn" id="btnPause">⏸ 一時停止/再開</button>
         <button class="btn danger" id="btnStop">⏹ 停止</button>
         <button class="btn" id="btnNext">⏭ 次へ</button>
       </div>
-
       <div class="status">
         <div class="now" id="nowText">（未再生）</div>
         <div class="row">
@@ -223,41 +328,42 @@
       </div>
     </div>
 
-    <!-- 右：設定 -->
-    <div class="card">
+    <!-- ④ 今回の読み上げリスト -->
+    <div class="card review-card">
+      <h2 class="card-title">④ 今回の読み上げリスト</h2>
+      <p class="card-desc">再生開始時点の対象と再生順を反映したリストを表示します。</p>
+      <p class="review-meta" id="reviewMeta">再生を開始すると、ここに対象リストが表示されます。</p>
+      <ol class="review-list" id="reviewList"></ol>
+    </div>
+
+    <!-- ② 出題・読み上げ設定 -->
+    <div class="card settings-card">
+      <h2 class="card-title">② 出題・読み上げ設定</h2>
+      <p class="card-desc">音声、速度、出題範囲、順番を調整します。</p>
       <label>音声</label>
       <select id="voiceSelect"></select>
       <button class="btn small" id="btnRefreshVoices">🔁 音声更新</button>
-
+      <div class="muted" id="voiceHint" style="margin-top:6px;"></div>
       <div class="divider"></div>
-
-      <label>話速</label>
+      <label>話速 <span id="rateVal">1.0</span></label>
       <input type="range" id="rate" min="0.6" max="1.4" step="0.05" value="1">
-
       <label style="margin-top:8px;">間隔（秒）</label>
       <input type="number" id="gap" value="0.8" step="0.1">
-
       <label style="margin-top:8px;">繰り返し回数</label>
       <input type="number" id="repeat" value="2" min="1">
-
       <div class="divider"></div>
-
       <label>順番</label>
       <div class="radio">
         <label class="opt"><input type="radio" name="order" value="input" checked> 入力順</label>
         <label class="opt"><input type="radio" name="order" value="shuffle"> シャッフル</label>
       </div>
-
       <div class="divider"></div>
-
       <label>グループ</label>
       <select id="groupSelect"></select>
-
       <div class="inline" style="margin-top:8px;">
         <input type="checkbox" id="starOnly">
         <label for="starOnly">★のみ</label>
       </div>
-
       <div class="inline" style="margin-top:6px;">
         <input type="checkbox" id="beepOn" checked>
         <label for="beepOn">開始ビープ</label>
@@ -265,7 +371,6 @@
     </div>
   </div>
 </div>
-
 <script>
 (() => {
   "use strict";
@@ -318,6 +423,8 @@
     repInfo: document.getElementById("repInfo"),
     countInfo: document.getElementById("countInfo"),
     toast: document.getElementById("toast"),
+    reviewMeta: null,
+    reviewList: null,
   };
 
   // -----------------------------
@@ -640,7 +747,6 @@
   function buildFilteredQueue(mode) {
     const group = getGroupSetting();
     const starOnly = getStarOnlySetting();
-
     let arr = allRecords.filter(r => {
       if (group !== "__all__" && r.group !== group) return false;
       if (starOnly && !r.important) return false;
@@ -648,13 +754,83 @@
       if (mode === "we" && !r.example) return false;
       return true;
     });
-
     if (getOrderSetting() === "shuffle") {
       arr = fisherYatesShuffle(arr.slice());
     } else {
       arr = arr.slice();
     }
     return arr;
+  }
+
+  function refreshReviewElements() {
+    el.reviewMeta = document.getElementById("reviewMeta");
+    el.reviewList = document.getElementById("reviewList");
+  }
+
+  function resetReviewList(message = "再生を開始すると、ここに対象リストが表示されます。") {
+    refreshReviewElements();
+    if (el.reviewMeta) el.reviewMeta.textContent = message;
+    if (el.reviewList) el.reviewList.innerHTML = "";
+  }
+
+  function renderReviewList(mode, queue) {
+    refreshReviewElements();
+    if (!el.reviewList) {
+      console.warn("reviewList not found");
+      return;
+    }
+
+    el.reviewList.innerHTML = "";
+    const orderLabel = getOrderSetting() === "shuffle" ? "シャッフル" : "入力順";
+    const modeLabel = mode === "we" ? "単語→例文" : "単語のみ";
+    const group = getGroupSetting();
+    const groupLabel = group === "__all__" ? "すべて" : group;
+    const starLabel = getStarOnlySetting() ? "★のみ" : "全対象";
+
+    if (!queue.length) {
+      if (el.reviewMeta) {
+        el.reviewMeta.textContent = `対象リストは0件です（${modeLabel} / ${orderLabel} / グループ:${groupLabel} / ${starLabel}）。`;
+      }
+      return;
+    }
+
+    if (el.reviewMeta) {
+      el.reviewMeta.textContent = `今回の対象: ${queue.length}件 / モード: ${modeLabel} / 再生順: ${orderLabel} / グループ: ${groupLabel} / ${starLabel}`;
+    }
+
+    for (const item of queue) {
+      const li = document.createElement("li");
+
+      const word = document.createElement("div");
+      word.className = "review-word";
+      word.textContent = item.word;
+      li.appendChild(word);
+
+      if (mode === "we" && item.example) {
+        const example = document.createElement("div");
+        example.className = "review-example";
+        example.textContent = item.example;
+        li.appendChild(example);
+      }
+
+      const badges = document.createElement("div");
+      badges.className = "review-badges";
+      if (item.group) {
+        const groupBadge = document.createElement("span");
+        groupBadge.className = "review-badge";
+        groupBadge.textContent = item.group;
+        badges.appendChild(groupBadge);
+      }
+      if (item.important) {
+        const starBadge = document.createElement("span");
+        starBadge.className = "review-badge";
+        starBadge.textContent = "★";
+        badges.appendChild(starBadge);
+      }
+      if (badges.childNodes.length) li.appendChild(badges);
+
+      el.reviewList.appendChild(li);
+    }
   }
 
   function applyParseAndUI({ silentToast = false } = {}) {
@@ -871,6 +1047,7 @@
 
     // Build queue for this session
     filteredQueue = buildFilteredQueue(mode);
+    renderReviewList(mode, filteredQueue);
     updateStatus();
 
     if (!filteredQueue.length) {
@@ -1124,9 +1301,11 @@
   function init() {
     restoreSettings();
     bindEvents();
+    refreshReviewElements();
 
     // Parse initial data and build group list
     applyParseAndUI({ silentToast:true });
+    resetReviewList();
     toast("準備OK。", "ok");
 
     // Voices
@@ -1143,7 +1322,11 @@
     updateStatus();
   }
 
-  init();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
 })();
 </script>
 </body>
